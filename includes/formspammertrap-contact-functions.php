@@ -69,11 +69,16 @@
 	// --------------------------------------------------------------------------------
 
 	// setup the session if needed (has to be first code executed)
-	if (session_status() == PHP_SESSION_NONE) {
-		//session has not started , so start it
-		ini_set("session.cookie_secure", 1);
-		session_start();
-	}
+	// Session is started early on 'init' by the plugin. Guard here to avoid warnings if something echoed.
+if ( session_status() !== PHP_SESSION_ACTIVE && ! headers_sent() ) {
+    if ( function_exists('is_ssl') && is_ssl() ) {
+        @ini_set('session.cookie_secure', '1');  // only on HTTPS
+    }
+    @ini_set('session.use_only_cookies', '1');
+    @ini_set('session.cookie_httponly', '1');
+    @ini_set('session.cookie_samesite', 'Lax'); // PHP 7.3+
+    @session_start();
+}
 	define('FST_VERSION', " 17.10"); // in case you want to use it on your form
 	define('FST_VERSION_DATE', "17  FEB 2024"); // in case you want to use it on your form
 
