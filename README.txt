@@ -21,6 +21,8 @@ FormSpammerTrap Contact Form provides a secure, spam-resistant contact form for 
 * ** No behavior change to spam protection** — Honeypot/timing/JS traps, submission logging, email notifications, import/export, and color customization all work exactly as before.
 * ** Compatibility** — Works on WordPress and ClassicPress; tested with PHP 8.2. No known conflicts with WooCommerce (checkout/account flows unaffected).
 * ** mu-plugin no longer required** — If you previously installed `wp-content/mu-plugins/fix-formspammertrap-phpmailer.php` to mitigate PHPMailer duplication, you can now remove it. The legacy core only loads on the front-end, so there’s no PHPMailer conflict in wp-admin.
+* **Session handling hardening** — Prevents “headers already sent” warnings by starting sessions early on `init` (front-end only) and guarding the legacy session start. No change to spam protection behavior.
+
 
 **🆕 NEW in v1.5.3:
 * **🔒 Critical Security Update! Fixes multiple XSS, Path Traversal, and Email Content Injection vulnerabilities. Comprehensive security improvements with enhanced input validation and sanitization. Highly recommended update for all users. All functionality preserved while significantly improving security.
@@ -772,6 +774,9 @@ Visit FormSpammerTrap.com for support with the core FormSpammerTrap system.
 * No changes to spam protection logic, submissions dashboard, import/export, or color customization.
 * Verified compatibility with WooCommerce; no checkout/account hooks are modified.
 * Deprecated the temporary mu-plugin PHPMailer shim; it is no longer required and can be removed.
+* Fixed PHP warnings: `ini_set(): Session ini settings cannot be changed after headers have already been sent` and `session_start(): Session cannot be started after headers have already been sent` by booting the session on front-end `init` and guarding the legacy call.
+* Session is not started in wp-admin; behavior of spam traps and submissions is unchanged.
+
 
 = 1.5.3 =
 * **🔒 COMPREHENSIVE SECURITY UPDATE**
@@ -911,7 +916,10 @@ Visit FormSpammerTrap.com for support with the core FormSpammerTrap system.
 
 == Upgrade Notice ==
 == 1.5.4 =
-* **🆕 Stability update: removes rare admin “critical error” screens by loading the legacy FormSpammerTrap core on front-end only, and auto-configures database credentials from WordPress/ClassicPress. No behavior changes to spam protection. Recommended for all users.
+* **🆕 Stability update: removes rare admin “critical error” screens by loading the legacy FormSpammerTrap core on front-end only, and auto-configures database credentials from WordPress/ClassicPress. Also fixes PHP session warnings (“headers already sent”) by starting sessions early on front-end `init`. No changes to spam protection.
+
+**Note:** If you previously installed the mu-plugin `wp-content/mu-plugins/fix-formspammertrap-phpmailer.php`, you may safely delete it in 1.5.4.
+
 
 == 1.5.3 =
 * **🔒 Critical Security Update! Fixes multiple XSS, Path Traversal, and Email Content Injection vulnerabilities. Comprehensive security improvements with enhanced input validation and sanitization. Highly recommended update for all users. All functionality preserved while significantly improving security.
@@ -1072,6 +1080,11 @@ wp-content/plugins/formspammertrap-plugin/
 * **Color customization XSS protection with input sanitization**
 * **XSS and CSRF protection for all admin functions**
 * **Complete security cleanup on plugin removal**
+**Session handling (v1.5.4):**
+* Session is started early on front-end `init` to avoid “headers already sent” warnings.
+* Legacy session start is guarded (skips if headers were already sent).
+* No session is started in wp-admin.
+
 
 **🆕 Submissions Dashboard:**
 * Professional WordPress-style admin interface
@@ -1204,9 +1217,3 @@ The Wordpress/ClassicPress plugin version, Form Submissions Management System, I
 
 
 Thank you for using FormSpammerTrap Contact Form!
-
-
-
-
-
-
