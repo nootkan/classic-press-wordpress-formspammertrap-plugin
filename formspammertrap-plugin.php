@@ -1392,7 +1392,7 @@ function syncColorInputs(sourceElement, targetName) {
                         <th scope="row">Max URLs Allowed</th>
                         <td>
                             <input type="number" name="fst_max_urls_allowed" value="<?php echo esc_attr($max_urls_allowed); ?>" min="0" max="10" class="small-text" />
-                            <p class="description">Maximum number of URLs allowed in contact form messages (spam control). Default is 1. Setting to 0 blocks all URLs.</p>
+                            <p class="description">Maximum number of URLs or Email Addresses allowed in contact form messages (spam control). Default is 1. Setting to 0 blocks all URLs.</p>
                         </td>
                     </tr>
                 </table>
