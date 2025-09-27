@@ -2064,18 +2064,24 @@ if (defined('DB_HOST') && defined('DB_NAME') && defined('DB_USER') && defined('D
 
 	// ----------------------------------------------------------------------------
 	// check for too many urls in the comment content
-	function fst_count_urls($text) {
-		// get the urls_allowed value
-		// regex to find all types of urls in the text
-		$regex = "/\b(?:(?:https?|ftp):\/\/|www\.)[-a-z0-9+&@#\/%?=~_|!:,.;]*[-a-z0-9+&@#\/%=~_|]/i";
-		// put found urls in the $urls_array array
-		preg_match_all($regex, $text, $urls_array);
-		// extract the elements of the first element to get a one-dimension array
-		$urls_array = $urls_array[0];
-		// remove the first 'urls_allowed' count elements from the $results array
-		$xurl_count = count($urls_array);
-		return $xurl_count; // count of urls in the message text
-	}
+	// Count links, and optionally plain email addresses.
+    function fst_count_urls($text, $include_emails = true) {
+        $count = 0;
+
+    // URLs (http/https/ftp or www.)
+        $regex_url = '/\b(?:(?:https?|ftp):\/\/|www\.)[^\s<>"\']+/i';
+        preg_match_all($regex_url, $text, $m1);
+        $count += count($m1[0]);
+
+    // Plain emails (user@example.com) — only if requested
+        if ($include_emails) {
+        $regex_email = '/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i';
+        preg_match_all($regex_email, $text, $m2);
+        $count += count($m2[0]);
+    }
+
+    return $count;
+    }
 
 	// ------------------------------------------------------
 	// validates the invisible ReCAPTCHA; uses your secret code/keys from google
@@ -4108,7 +4114,7 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 		if (isset($_POST['your_name']) && !empty(trim($_POST['your_name']))) {
 			$name_urls = fst_count_urls(trim($_POST['your_name']));
 			if ($name_urls > FST_XURLS_ALLOWED) {
-				$missing_info .= "URLs not allowed in name field. Found: " . $name_urls . " URLs.<br>";
+				$missing_info .= "URLs or email addresses not allowed in name field. Found: " . $name_urls . ".<br>";
 			}
 		}
 		// check for missing email
@@ -4119,7 +4125,7 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 		if (isset($_POST['your_subject']) && !empty(trim($_POST['your_subject']))) {
 			$subject_urls = fst_count_urls(trim($_POST['your_subject']));
 			if ($subject_urls > FST_XURLS_ALLOWED) {
-				$missing_info .= "URLs not allowed in subject field. Found: " . $subject_urls . " URLs.<br>";
+				$missing_info .= "URLs or email addresses not allowed in subject field. Found: " . $subject_urls . ".<br>";
 			}
 		}
 
@@ -4132,7 +4138,7 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 		// check for max urls in message
 		$urls_found = fst_count_urls($xyourcomment);
 		if ($urls_found > FST_XURLS_ALLOWED) {
-			$missing_info .= "Too many URLs in your message; only " . FST_XURLS_ALLOWED . " are allowed.<br>";
+			$missing_info .= "Too many URLs or email addresses in your message; only " . FST_XURLS_ALLOWED . " are allowed.<br>";
 		}
 
 		// check any other required fields (although in-line validation should prevent that
