@@ -2064,24 +2064,18 @@ if (defined('DB_HOST') && defined('DB_NAME') && defined('DB_USER') && defined('D
 
 	// ----------------------------------------------------------------------------
 	// check for too many urls in the comment content
-	// Count links, and optionally plain email addresses.
-    function fst_count_urls($text, $include_emails = true) {
-        $count = 0;
-
-    // URLs (http/https/ftp or www.)
-        $regex_url = '/\b(?:(?:https?|ftp):\/\/|www\.)[^\s<>"\']+/i';
-        preg_match_all($regex_url, $text, $m1);
-        $count += count($m1[0]);
-
-    // Plain emails (user@example.com) — only if requested
-        if ($include_emails) {
-        $regex_email = '/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i';
-        preg_match_all($regex_email, $text, $m2);
-        $count += count($m2[0]);
-    }
-
-    return $count;
-    }
+	function fst_count_urls($text) {
+		// get the urls_allowed value
+		// regex to find all types of urls in the text
+		$regex = "/\b(?:(?:https?|ftp):\/\/|www\.)[-a-z0-9+&@#\/%?=~_|!:,.;]*[-a-z0-9+&@#\/%=~_|]/i";
+		// put found urls in the $urls_array array
+		preg_match_all($regex, $text, $urls_array);
+		// extract the elements of the first element to get a one-dimension array
+		$urls_array = $urls_array[0];
+		// remove the first 'urls_allowed' count elements from the $results array
+		$xurl_count = count($urls_array);
+		return $xurl_count; // count of urls in the message text
+	}
 
 	// ------------------------------------------------------
 	// validates the invisible ReCAPTCHA; uses your secret code/keys from google
@@ -4095,6 +4089,17 @@ background-color: #45a049;
 		//fst_show_globals();
 		$missing_info = "";
 		$after_submit = array(); // will hold valid values if no errors
+		// --- Normalize WP/CP "magic quotes" so values don't contain backslashes ---
+if (function_exists('wp_unslash')) {
+    $_POST = wp_unslash($_POST);  // WordPress / ClassicPress way
+} else {
+    // Fallback for non-WordPress environments
+    $fst_unslash_deep = function ($v) use (&$fst_unslash_deep) {
+        if (is_array($v)) return array_map($fst_unslash_deep, $v);
+        return is_string($v) ? stripslashes($v) : $v;
+    };
+    $_POST = $fst_unslash_deep($_POST);
+}
 
 // put all form fields into the $after_submit array
 // Initialize array to store field name-value pairs
@@ -4114,7 +4119,7 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 		if (isset($_POST['your_name']) && !empty(trim($_POST['your_name']))) {
 			$name_urls = fst_count_urls(trim($_POST['your_name']));
 			if ($name_urls > FST_XURLS_ALLOWED) {
-				$missing_info .= "URLs or email addresses not allowed in name field. Found: " . $name_urls . ".<br>";
+				$missing_info .= "URLs not allowed in name field. Found: " . $name_urls . " URLs.<br>";
 			}
 		}
 		// check for missing email
@@ -4125,7 +4130,7 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 		if (isset($_POST['your_subject']) && !empty(trim($_POST['your_subject']))) {
 			$subject_urls = fst_count_urls(trim($_POST['your_subject']));
 			if ($subject_urls > FST_XURLS_ALLOWED) {
-				$missing_info .= "URLs or email addresses not allowed in subject field. Found: " . $subject_urls . ".<br>";
+				$missing_info .= "URLs not allowed in subject field. Found: " . $subject_urls . " URLs.<br>";
 			}
 		}
 
@@ -4138,7 +4143,7 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 		// check for max urls in message
 		$urls_found = fst_count_urls($xyourcomment);
 		if ($urls_found > FST_XURLS_ALLOWED) {
-			$missing_info .= "Too many URLs or email addresses in your message; only " . FST_XURLS_ALLOWED . " are allowed.<br>";
+			$missing_info .= "Too many URLs in your message; only " . FST_XURLS_ALLOWED . " are allowed.<br>";
 		}
 
 		// check any other required fields (although in-line validation should prevent that
@@ -4233,6 +4238,13 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 }
 	// --------------------------------------------------------------------------
 	function fst_build_message($after_submit) {
+		// --- Final cleanup for display: remove any backslashes before quotes/parentheses ---
+foreach (['your_name', 'your_email', 'your_subject', 'your_message'] as $k) {
+    if (isset($after_submit[$k]) && is_string($after_submit[$k])) {
+        // remove backslashes only when they precede quotes or parentheses
+        $after_submit[$k] = preg_replace('/\\\\([\'"()])/', '$1', $after_submit[$k]);
+    }
+}
 		// build the mail message text, start with message from form
 		$mail_message = "<b>From:</b> " . $after_submit['your_name'] . ", <br><b>Sender Email :</b> " . $after_submit['your_email'] . "<br><br><b>Sender Message </b><br>" . $after_submit['your_message'] . "<br>";
 		// add 'content of all form fields' using FST_XCUSTOM_FIELDS
