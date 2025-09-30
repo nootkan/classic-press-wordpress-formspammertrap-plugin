@@ -1,0 +1,23 @@
+# --- Normalize line endings (clean diffs)
+*     text=auto eol=lf
+*.php text eol=lf diff=php
+*.js  text eol=lf
+*.css text eol=lf
+*.md  text eol=lf
+
+# --- Exclude dev files/folders from GitHub ZIPs (git archive export-ignore)
+.gitattributes export-ignore
+.gitignore     export-ignore
+.github/       export-ignore
+.vscode/       export-ignore
+.idea/         export-ignore
+tests/         export-ignore
+tools/         export-ignore
+scripts/       export-ignore
+docs/          export-ignore
+examples/      export-ignore
+.snyk          export-ignore
+snyk.*         export-ignore
+composer.json  export-ignore
+composer.lock  export-ignore
+phpunit.xml*   export-ignore
