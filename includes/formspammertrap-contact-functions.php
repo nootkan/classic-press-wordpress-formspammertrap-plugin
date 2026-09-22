@@ -1064,7 +1064,7 @@
 	$FST_CONTACT_VERIFY       = filter_var($FST_CONTACT_VERIFY, FILTER_VALIDATE_BOOLEAN); // since version 10
 	$FST_SITE_NAME            = filter_var($FST_SITE_NAME, FILTER_SANITIZE_FULL_SPECIAL_CHARS); //since version 10
 	// if blank, default to host name
-	if (!$FST_SITE_NAME) {$FST_SITE_NAME = $_SERVER['HTTP_HOST'];}
+	if (!$FST_SITE_NAME) {$FST_SITE_NAME = filter_var($_SERVER['HTTP_HOST'] ?? '', FILTER_SANITIZE_FULL_SPECIAL_CHARS);}
 	$FST_CONTACT_VERIFY_REDIRECT = filter_var($FST_CONTACT_VERIFY_REDIRECT, FILTER_VALIDATE_URL); // new in version 10
 	$FST_CUSTOM_FIELDS_LOCATION  = intval($FST_CUSTOM_FIELDS_LOCATION); // convert to integer, just in case specified as string
 	$FST_CUSTOM_FIELDS_LOCATION  = filter_var($FST_CUSTOM_FIELDS_LOCATION, FILTER_VALIDATE_INT, array(
@@ -2276,7 +2276,7 @@
                     					echo "cols='" . $field['MAXCHARS'] . "' ";
                     					echo " rows='" . $field['MAXLENGTH'] . "'";
                     					echo ">";
-                    					echo $value;
+                    					echo htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
                     					echo "</textarea>";
                     					break;
 
@@ -2312,7 +2312,7 @@
                     					if ($required_class) {echo " required='required'";}
                     					echo "maxlength='" . $field['MAXCHARS'] . "' ";
                     					echo " size='" . $field['MAXLENGTH'] . "'";
-                    					echo " value='" . $value . "'";
+                    					echo " value='" . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . "'";
                     					echo ">";
                     					if ($field_type == "CHECKBOX") {
                     						echo $field['AFTERMSG'] . "</p>";
@@ -3456,7 +3456,7 @@ background-color: #45a049;
 			$msg .= "<h3 align='center' >" . FST_LANG_TEXT['signup_form_ok'] . "</h3>";
 		}
 		if (FST_XTHANKS_URL) {
-			$msg .= "<p align='center'><a href='" . FST_CONTACT_VERIFY_REDIRECT . "' class = 'fst_text_black'>" . FST_LANG_TEXT['signup_form_return'] . "</a></p>";
+			$msg .= "<p align='center'><a href='" . htmlspecialchars(FST_CONTACT_VERIFY_REDIRECT, ENT_QUOTES, 'UTF-8') . "' class = 'fst_text_black'>" . FST_LANG_TEXT['signup_form_return'] . "</a></p>";
 		}
 		$msg .= "</div>";
 		// display verified message, then abort the message box
@@ -4457,7 +4457,7 @@ if (FST_XBCC_EMAIL && !empty(FST_XBCC_EMAIL)) {
         // Extract an extension from the provided filename
         $ext = pathinfo($_FILES['fst_uploadfile']['name'][$ct], PATHINFO_EXTENSION);
         // Define a safe location to move the uploaded file to, preserving the extension
-        $filename = $_FILES['fst_uploadfile']['name'][$ct];
+        $filename = sanitize_file_name(wp_basename($_FILES['fst_uploadfile']['name'][$ct]));
         $uploadfile = fst_new_file_name(FST_UPLOAD_FOLDER, $filename);
 		if (!FST_UPLOADS_DELETE) { // delete after upload not set, so save the file
 			if (move_uploaded_file($_FILES['fst_uploadfile']['tmp_name'][$ct], $uploadfile)) {
