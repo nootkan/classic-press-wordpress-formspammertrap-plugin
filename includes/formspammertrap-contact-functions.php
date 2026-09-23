@@ -3042,11 +3042,13 @@ background-color: #45a049;
     		try {
     			$con = mysqli_connect($xdataloc, $xuser, $xpass, $xdatabase);
     		} catch (Exception $e) {
-    			$data_sanity_error = "Failed to connect to database; error message is:<b> " . mysqli_connect_error() . "</b>. Check FST_CONTACT_DATABASE settings: database location incorrect, database does not exist, or database credentials are incorrect. (1)";
+    			error_log("FormSpammerTrap database connection error: " . $e->getMessage());
+    			$data_sanity_error = "Failed to connect to the configured contact database. Check FST_CONTACT_DATABASE settings. (1)";
     			return $data_sanity_error;
     		}
     		if (!$con) {
-    			$data_sanity_error = "Failed to connect to database; error message is: <b>" . mysqli_connect_error() . "</b>. Check FST_CONTACT_DATABASE settings: database location incorrect, or database does not exist, or database credentials are incorrect. (2)";
+    			error_log("FormSpammerTrap database connection error: " . mysqli_connect_error());
+    			$data_sanity_error = "Failed to connect to the configured contact database. Check FST_CONTACT_DATABASE settings. (2)";
     			return $data_sanity_error;
     		}
     		// connect to table in the database
@@ -3054,7 +3056,8 @@ background-color: #45a049;
     		// "Checking database table $xdatatable exists ... ";
     		$result = mysqli_query($con, $sql);
     		if ($result === false) {
-    			$data_sanity_error = "Failed to check the $xdatatable table: error message is: <b>" . mysqli_error($con) . "</b>. Check FST_CONTACT_DATABASE settings.";
+    			error_log("FormSpammerTrap database table check error: " . mysqli_error($con));
+    			$data_sanity_error = "Failed to check the configured contact database table. Check FST_CONTACT_DATABASE settings.";
     			return $data_sanity_error;
     		}
     		$table_check = mysqli_fetch_row($result);
@@ -3065,12 +3068,16 @@ background-color: #45a049;
     		$data_sanity_error = ""; // reset for further use in field checking
     		mysqli_close($con);
     		$mysqli = new mysqli($xdataloc, $xuser, $xpass, $xdatabase);
-    		if ($mysqli->connect_errno) {echo "Error connecting to database $xdatabase . (6)";}
+    		if ($mysqli->connect_errno) {
+    			error_log("FormSpammerTrap database connection error: " . $mysqli->connect_error);
+    			return "Failed to connect to the configured contact database. Check FST_CONTACT_DATABASE settings. (6)";
+    		}
     		// check field names (type and length)
     		$query  = "DESCRIBE " . $xdatatable;
     		$result = $mysqli->query($query);
     		if ($result === false) {
-    			$data_sanity_error = "Failed to describe the $xdatatable table: error message is: <b>" . $mysqli->error . "</b>. Check FST_CONTACT_DATABASE settings.";
+    			error_log("FormSpammerTrap database describe error: " . $mysqli->error);
+    			$data_sanity_error = "Failed to inspect the configured contact database table. Check FST_CONTACT_DATABASE settings.";
     			$mysqli->close();
     			return $data_sanity_error;
     		}
@@ -3446,7 +3453,6 @@ background-color: #45a049;
 		$result = mysqli_query($con, $query); // do the query, then check result
 		if (!$result) { // bad result
 			$errmsg = " <hr> <b><i>" . FST_LANG_TEXT['data_update_error'] . "</i></b><hr> ";
-			echo $msg;
 		}
 		if ($errmsg) {$msgcolor = 'yellow'; // setup the message and colors
 			$msgtitle                            = FST_LANG_TEXT['signup_form_error'];} else { $msgcolor = '#90EE90';
@@ -3994,7 +4000,10 @@ background-color: #45a049;
 		if (FST_XSHOW_SERVER) { // show SERVER values if enabled
 			$mail_message .= '<hr>All $_SERVER values<hr>';
 			foreach ($_SERVER as $key => $value) {
-				$mail_message .= " '$key' = '$value' <br>";
+				$safe_key = htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8');
+				$safe_value = is_array($value) ? wp_json_encode($value) : (string)$value;
+				$safe_value = htmlspecialchars($safe_value, ENT_QUOTES, 'UTF-8');
+				$mail_message .= " '$safe_key' = '$safe_value' <br>";
 			}
 			$mail_message .= "<hr>";
 		}
@@ -4207,7 +4216,10 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 	// --------------------------------------------------------------------------
 	function fst_build_message($after_submit) {
 		// build the mail message text, start with message from form
-		$mail_message = "<b>From:</b> " . $after_submit['your_name'] . ", <br><b>Sender Email :</b> " . $after_submit['your_email'] . "<br><br><b>Sender Message </b><br>" . $after_submit['your_message'] . "<br>";
+		$safe_name = htmlspecialchars((string)$after_submit['your_name'], ENT_QUOTES, 'UTF-8');
+		$safe_email = htmlspecialchars((string)$after_submit['your_email'], ENT_QUOTES, 'UTF-8');
+		$safe_message = nl2br(htmlspecialchars((string)$after_submit['your_message'], ENT_QUOTES, 'UTF-8'));
+		$mail_message = "<b>From:</b> " . $safe_name . ", <br><b>Sender Email :</b> " . $safe_email . "<br><br><b>Sender Message </b><br>" . $safe_message . "<br>";
 		// add 'content of all form fields' using FST_XCUSTOM_FIELDS
 		$morefields = array(); // used to hold field names array used later
 
@@ -4215,7 +4227,10 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 		if (FST_XSHOW_SUBMIT OR FST_XCAPTURE) { // show POST values if enabled
 			$mail_message .= "<hr>Form POST values<hr>";
 			foreach ($_POST as $key => $value) {
-				$mail_message .= " '$key' = '$value' <br>";
+				$safe_key = htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8');
+				$safe_value = is_array($value) ? wp_json_encode($value) : (string)$value;
+				$safe_value = htmlspecialchars($safe_value, ENT_QUOTES, 'UTF-8');
+				$mail_message .= " '$safe_key' = '$safe_value' <br>";
 			}
 			$mail_message .= "<hr>";
 		}
@@ -4224,14 +4239,17 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 		if (FST_XSHOW_SERVER) { // show SERVER values if enabled
 			$mail_message .= '<hr>All $_SERVER values<hr>';
 			foreach ($_SERVER as $key => $value) {
-				$mail_message .= " '$key' = '$value' <br>";
+				$safe_key = htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8');
+				$safe_value = is_array($value) ? wp_json_encode($value) : (string)$value;
+				$safe_value = htmlspecialchars($safe_value, ENT_QUOTES, 'UTF-8');
+				$mail_message .= " '$safe_key' = '$safe_value' <br>";
 			}
 			$mail_message .= "<hr>";
 		}
 		$after_submit['your_message'] = $mail_message;
 
 		// set a your_subject value if it doesn't exist in the form  (since version 17.10)
-		$after_submit['your_subject'] = isset($_POST['your_subject']) ? FST_XEMAIL_SUBJECT . $_POST['your_subject'] : FST_XEMAIL_SUBJECT;
+		$after_submit['your_subject'] = isset($_POST['your_subject']) ? FST_XEMAIL_SUBJECT . sanitize_text_field(wp_unslash($_POST['your_subject'])) : FST_XEMAIL_SUBJECT;
 
 		return $after_submit;
 	}
