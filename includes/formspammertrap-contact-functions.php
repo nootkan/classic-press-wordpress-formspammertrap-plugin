@@ -731,7 +731,7 @@
 	- defaults to the site URL<br>
 	- Make sure you specify a complete URL; no validation on the value
 	 */
-	$FST_CONTACT_VERIFY_REDIRECT = "https://" . $_SERVER['HTTP_HOST'];
+	$FST_CONTACT_VERIFY_REDIRECT = function_exists('home_url') ? home_url('/') : "";
 
 	/*  Do not email with normal process
 	- if set true, the email will not be sent via the normal process
@@ -1066,7 +1066,7 @@
 	$FST_CONTACT_VERIFY       = filter_var($FST_CONTACT_VERIFY, FILTER_VALIDATE_BOOLEAN); // since version 10
 	$FST_SITE_NAME            = filter_var($FST_SITE_NAME, FILTER_SANITIZE_FULL_SPECIAL_CHARS); //since version 10
 	// if blank, default to host name
-	if (!$FST_SITE_NAME) {$FST_SITE_NAME = filter_var($_SERVER['HTTP_HOST'] ?? '', FILTER_SANITIZE_FULL_SPECIAL_CHARS);}
+	if (!$FST_SITE_NAME) {$FST_SITE_NAME = htmlspecialchars($fst_site_host, ENT_QUOTES, 'UTF-8');}
 	$FST_CONTACT_VERIFY_REDIRECT = filter_var($FST_CONTACT_VERIFY_REDIRECT, FILTER_VALIDATE_URL); // new in version 10
 	$FST_CUSTOM_FIELDS_LOCATION  = intval($FST_CUSTOM_FIELDS_LOCATION); // convert to integer, just in case specified as string
 	$FST_CUSTOM_FIELDS_LOCATION  = filter_var($FST_CUSTOM_FIELDS_LOCATION, FILTER_VALIDATE_INT, array(
@@ -1367,8 +1367,9 @@
 			$verify_subect = FST_CONTACT_VERIFY_MESSAGE_DATA['verify_subject'];
 		} else // use default content/parameters
 		{
+			$verify_site_url = function_exists('home_url') ? esc_url(home_url('/')) : '';
 			$verify_subject = "Hello from " . FST_SITE_NAME . " !";
-			$verify_message = "<h2 align='center'>$verify_subect</h2><p>" . FST_CONTACT_VERIFY_MESSAGE . "</p><p>Please verify your intent to add your email to the contact list at " . FST_SITE_NAME . " (" . $_SERVER['HTTP_HOST'] . " ) by clicking the link below.</p><p>If you did not sign up, please ignore this message.</p><p>You can contact us via the Contact page at " . $_SERVER['HTTP_HOST'] . "</p><p>Click this link to verify: <a href='" . FST_CONTACT_VERIFY_URL . "'> " . FST_CONTACT_VERIFY_URL . "</a></p>";
+			$verify_message = "<h2 align='center'>$verify_subect</h2><p>" . FST_CONTACT_VERIFY_MESSAGE . "</p><p>Please verify your intent to add your email to the contact list at " . FST_SITE_NAME . " (" . $verify_site_url . " ) by clicking the link below.</p><p>If you did not sign up, please ignore this message.</p><p>You can contact us via the Contact page at " . $verify_site_url . "</p><p>Click this link to verify: <a href='" . FST_CONTACT_VERIFY_URL . "'> " . FST_CONTACT_VERIFY_URL . "</a></p>";
 		}
 		// added additional headers since version 16
 		/*
@@ -2887,7 +2888,7 @@ background-color: #45a049;
     		// check if $FST_FROM_EMAIL is set for the current domain (improved since v16)
     		$mail_domain = explode("@", FST_XEMAIL_ON_DOMAIN);
     		$mail_domain = strtolower(trim($mail_domain[1]));
-    		$this_domain = fst_get_domain($_SERVER['HTTP_HOST']); // since version 17
+    		$this_domain = function_exists('home_url') ? fst_get_domain(home_url()) : ""; // since version 17
     		$same_domain = ($this_domain == $mail_domain) ? true : false;
     		if (!$same_domain) {
     			$x[] = 'The FST_FROM_EMAIL value (set to <b>' . FST_XEMAIL_ON_DOMAIN . '</b>) needs to match your domain. You specified an email on <b>' . $mail_domain . '</b> , it should be an email on <b>' . $this_domain . '</b> . This value is set in your form\'s code.';
@@ -3206,9 +3207,9 @@ background-color: #45a049;
     		$html_end   = "</body></html>";
     		$sendmsg    = $html_start . $fatal_message . $html_end;
     		if (FST_SANITY_CHECK_EMAIL) {
-    			$protocol = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] != 'off') || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+    			
 
-    			$referring_page = $protocol . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+    			$referring_page = function_exists('get_permalink') ? esc_url(get_permalink()) : (function_exists('home_url') ? esc_url(home_url('/')) : '');
     			$sendmsg .= "<p>The problem contact page is at $referring_page . </p>";
     			$message_elements = array(
     				'recipient' => FST_XEMAIL_ON_DOMAIN,
@@ -4136,11 +4137,11 @@ foreach (FST_REQUIRED_FIELDS as $field) {
 
 		// build a valid email from the domain; email address doesn't need to exist, just to ensure that sender is in the same domain to ensure mail not sensed as spam
 		if (!FST_XEMAIL_ON_DOMAIN) {
-			$domain = (isset($_SERVER['HTTP_HOST'])) ? fst_get_domain($_SERVER['HTTP_HOST']) : "";
+			$domain = function_exists('home_url') ? fst_get_domain(home_url()) : "";
 			if (!$domain) {
 				$missing_info .= "Incorrect or missing domain name in the FST_XEMAIL_ON_DOMAIN value.";
 			}
-			$after_submit['from_email'] = "noreply@" . $domain;
+			$after_submit['from_email'] = sanitize_email("noreply@" . $domain);
 		} else {
 			$after_submit['from_email'] = FST_XEMAIL_ON_DOMAIN;}
 		// any other checking
