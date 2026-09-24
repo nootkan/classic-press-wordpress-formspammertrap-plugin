@@ -1045,8 +1045,10 @@
 	$FST_UPLOAD_FOLDER  = filter_var($FST_UPLOAD_FOLDER, FILTER_SANITIZE_FULL_SPECIAL_CHARS);
 	$FST_UPLOADS_DELETE = filter_var($FST_UPLOADS_DELETE, FILTER_VALIDATE_BOOLEAN);
 	$FST_FROM_EMAIL     = filter_var(trim($FST_FROM_EMAIL), FILTER_SANITIZE_EMAIL);
-	if (!$FST_FROM_EMAIL) {$FST_FROM_EMAIL = "noreply@" . trim(preg_replace('/^www\./', '', $_SERVER['HTTP_HOST']));}
-	if (!$FST_FROM_NAME) {$FST_FROM_NAME =  trim(preg_replace('/^www\./', '', $_SERVER['HTTP_HOST']));}
+	$fst_site_host = function_exists('home_url') ? wp_parse_url(home_url(), PHP_URL_HOST) : '';
+	$fst_site_host = is_string($fst_site_host) ? trim(preg_replace('/^www\./i', '', $fst_site_host)) : '';
+	if (!$FST_FROM_EMAIL && $fst_site_host) {$FST_FROM_EMAIL = sanitize_email('noreply@' . $fst_site_host);}
+	if (!$FST_FROM_NAME && $fst_site_host) {$FST_FROM_NAME = $fst_site_host;}
 	$FST_FROM_NAME = htmlspecialchars($FST_FROM_NAME);     // since version 17.00
 
 	// make sure the honeypot URL has been specified; default to the FormSpammerSite if invalid
@@ -1323,7 +1325,7 @@
 		if (isset($_SESSION['formspammertrap']) && !$_SESSION['formspammertrap'] === 'FormSpammerTrap') {fst_go_away(FST_SPAMMER_MSG . '1205');}
 		if (isset($_SESSION['formspammertrap']) && !$_SESSION['formspammertrap'] === 'FormSpammerTrap') {fst_go_away(FST_SPAMMER_MSG . '1206');}
 		if (isset($_POST["submitform"]) && $_SESSION['formspammertrap'] === 'FormSpammerTrap') {
-			fst_process_form();
+			$show_form = !fst_process_form();
 		} // closing bracket for if submitted
 		// set session, since valid access
 		$_SESSION['formspammertrap'] = "FormSpammerTrap";
@@ -4056,11 +4058,8 @@ background-color: #45a049;
 		// stop back button via fst_stop_backpage
 		// next script prevents resubmit by clearing the history for the form
 		fst_stop_backpage();
-		// set form display false via return value?
-		$show_form = false; // success - don't show the form
-
-		// end of sending function
-		return;
+		// successful submission - tell the caller not to redisplay the form
+		return true;
 	}
 
 	// --------------------------------------------------------------------------
@@ -4466,30 +4465,86 @@ if (FST_XBCC_EMAIL && !empty(FST_XBCC_EMAIL)) {
     	}
 
 	function fst_attach_multiple_files($mail) {
-	 //Attach multiple files one by one
-	 $filecount = count($_FILES['fst_uploadfile']['name']);
-	 $status_msg = "";
-	// Ensure that the fst_uploadfile index is set and it's an array
-    // Loop through each uploaded file
-    for ($ct = 0; $ct < count($_FILES['fst_uploadfile']['tmp_name']); $ct++) {
-        // Extract an extension from the provided filename
-        $ext = pathinfo($_FILES['fst_uploadfile']['name'][$ct], PATHINFO_EXTENSION);
-        // Define a safe location to move the uploaded file to, preserving the extension
-        $filename = sanitize_file_name(wp_basename($_FILES['fst_uploadfile']['name'][$ct]));
-        $uploadfile = fst_new_file_name(FST_UPLOAD_FOLDER, $filename);
-		if (!FST_UPLOADS_DELETE) { // delete after upload not set, so save the file
-			if (move_uploaded_file($_FILES['fst_uploadfile']['tmp_name'][$ct], $uploadfile)) {
-				$status_msg .= FST_LANG_TEXT['file_upload_ok'] . "<br>";
-			} else {
+		$status_msg = "";
+
+		if (!isset($_FILES['fst_uploadfile']['tmp_name'], $_FILES['fst_uploadfile']['name'])) {
+			return $mail;
+		}
+
+		$tmp_names = (array) $_FILES['fst_uploadfile']['tmp_name'];
+		$names = (array) $_FILES['fst_uploadfile']['name'];
+		$errors = isset($_FILES['fst_uploadfile']['error']) ? (array) $_FILES['fst_uploadfile']['error'] : array();
+		$mime_map = fst_mime2ext("*");
+		$allowed_extensions = array_map(
+			static function ($extension) {
+				return strtolower(ltrim((string) $extension, '.'));
+			},
+			FST_UPLOAD_EXTENSIONS
+		);
+
+		foreach ($tmp_names as $ct => $tmp_name) {
+			$upload_error = isset($errors[$ct]) ? (int) $errors[$ct] : UPLOAD_ERR_OK;
+
+			if ($upload_error === UPLOAD_ERR_NO_FILE) {
+				continue;
+			}
+
+			if ($upload_error !== UPLOAD_ERR_OK || !is_string($tmp_name) || !is_uploaded_file($tmp_name)) {
 				$status_msg .= FST_LANG_TEXT['file_upload_error'] . "<br>";
+				continue;
+			}
+
+			$original_name = isset($names[$ct]) ? (string) $names[$ct] : '';
+			$filename = sanitize_file_name(wp_basename($original_name));
+			$original_ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+			$mime_type = fst_get_mime_type($tmp_name);
+			if (!$mime_type || !isset($mime_map[$mime_type])) {
+				$status_msg .= FST_LANG_TEXT['file_upload_wrong_ext'] . "<br>";
+				continue;
+			}
+
+			$detected_ext = strtolower((string) $mime_map[$mime_type]);
+			if (
+				$original_ext === ''
+				|| !in_array($original_ext, $allowed_extensions, true)
+				|| !in_array($detected_ext, $allowed_extensions, true)
+			) {
+				$status_msg .= FST_LANG_TEXT['file_upload_wrong_ext'] . "<br>";
+				continue;
+			}
+
+			$attachment_path = $tmp_name;
+
+			if (!FST_UPLOADS_DELETE) {
+				$upload_dir = rtrim(FST_UPLOAD_FOLDER, "/\\");
+				if ($upload_dir === '' || !is_dir($upload_dir)) {
+					$status_msg .= FST_LANG_TEXT['file_upload_error'] . "<br>";
+					continue;
+				}
+
+				do {
+					$stored_filename = 'fst-' . wp_generate_uuid4() . '.' . $detected_ext;
+					$uploadfile = $upload_dir . DIRECTORY_SEPARATOR . $stored_filename;
+				} while (file_exists($uploadfile));
+
+				if (!move_uploaded_file($tmp_name, $uploadfile)) {
+					$status_msg .= FST_LANG_TEXT['file_upload_error'] . "<br>";
+					continue;
+				}
+
+				$attachment_path = $uploadfile;
+			}
+
+			if (!$mail->addAttachment($attachment_path, $filename)) {
+				$status_msg .= 'Failed to attach file ' . htmlspecialchars($filename, ENT_QUOTES, 'UTF-8') . "<br>";
+			} else {
+				$status_msg .= FST_LANG_TEXT['file_upload_ok'] . "<br>";
 			}
 		}
-        if (!$mail->addAttachment($uploadfile, $filename)) {
-            $status_msg .= 'Failed to attach file ' . $filename;
-        }
-    }
-	$mail->Body .= $status_msg;
-	return $mail;
+
+		$mail->Body .= $status_msg;
+		return $mail;
 	}
     // --------------------------------------------------------------------------
     // --------------------------------------------------------------------------
